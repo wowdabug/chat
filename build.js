@@ -16,5 +16,5 @@ await writeFile(
     "dist/index.html",
     html
         .replace("<link rel=\"stylesheet\" href=\"style.css\">", `<style>${css}</style>`)
-        .replace("<script src=\"dist/main.js\"></script>", `<script>${js}</script>`)
+        .replace("<script src=\"../dist/main.js\"></script>", `<script>${js}</script>`)
 );
