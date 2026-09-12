@@ -1,0 +1,64 @@
+:root {
+    --header-background: #101010;
+    --server-list-background: #202020;
+    --channel-list-background: #303030;
+    --chat-background: #404040;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    background: black;
+    overflow: hidden;
+}
+
+.header {
+    background: var(--header-background);
+    flex: 0 0 15px;
+}
+
+.main {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+}
+
+.server-list {
+    background: var(--server-list-background);
+    flex: 0 0 64px;
+}
+
+.channel-list {
+    background: var(--channel-list-background);
+    flex: 0 0 192px;
+}
+
+.chat-list {
+    background: var(--chat-background);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.footer {
+    flex: 0 0 64px;
+    display: flex;
+    flex-direction: row;
+}
+
+.profile {
+    background: red;
+    flex: 0 0 256px;
+}
+
+.chat-input {
+    background: blue;
+    flex: 1;
+}
