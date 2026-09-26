@@ -1,17 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
+
 import validator from 'validator';
-
-type LoginData = {
-    username: string;
-    email: string;
-    password: string;
-};
-
-type RegisterData = {
-    username: string;
-    email: string;
-    password: string;
-};
+//import crypto from 'crypto';
 
 export class Channel extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -84,6 +74,14 @@ async function login(request: Request, env: Env): Promise<Response> {
     return new Response("No Content", { status: 204 });
 }
 
+async function hashPassword(password: string, salt: string): string {
+    return "";
+}
+
+async function generateSalt(): string {
+    return "";
+}
+
 async function register(request: Request, env: Env): Promise<Response> {
     let json: unknown;
 
@@ -111,12 +109,6 @@ async function register(request: Request, env: Env): Promise<Response> {
         return new Response("Bad Request", { status: 400 });
     }
 
-    const user: RegisterData = {
-        username,
-        email,
-        password
-    };
-
     if (
         !isUsername(username) || 
         !isEmail(email) || 
@@ -126,15 +118,17 @@ async function register(request: Request, env: Env): Promise<Response> {
     }
 
     const hasUser = await env.chat
-        .prepare("SELECT id FROM users WHERE email = ? OR username = ?")
-        .bind(user.username, user.email)
+        .prepare("SELECT id FROM users WHERE username = ? OR email = ?")
+        .bind(username, email)
         .first();
 
     if (hasUser) {
         return new Response("No Content", { status: 409 });
     }
 
-    
+    env.chat
+        .prepare("INSERT INTO users (username, email, password_hash, verified) VALUES (?, ?, ?, ?)")
+        .bind()
 }
 
 async function verify(request: Request, env: Env): Promise<Response> {
