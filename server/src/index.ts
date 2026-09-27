@@ -1,5 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
+import { isUsername, isHash, hash, generateSalt } from "../../shared/main";
+
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -24,69 +26,6 @@ export class Channel extends DurableObject<Env> {
 	async sayHello(name: string): Promise<string> {
 		return `Hello, ${name}!`;
 	}
-}
-
-function isUsername(username: string): boolean {
-    if (username.length < 3 || username.length > 30) {
-        return false;
-    }
-
-    const isValid = (char: string) => {
-       return (
-            (char >= "0" && char <= "9") ||
-            (char >= "a" && char <= "z") ||
-            (char >= "A" && char <= "Z") ||
-            (char === "_" )
-       );
-    }
-
-    for (let i = 0; i < username.length; ++i) {
-        if (!isValid(username[i])) { 
-            return false;
-        }
-    }
-
-    return true;
-}
-
-function isHash(hash: string): boolean {
-    if (hash.length !== 64) {
-        return false;
-    }
-
-    const isValid = (char: string) => {
-       return (
-            (char >= "0" && char <= "9") ||
-            (char >= "a" && char <= "z") ||
-            (char >= "A" && char <= "Z")
-       );
-    }
-
-    for (let i = 0; i < hash.length; ++i) {
-        if (!isValid(hash[i])) { 
-            return false;
-        }
-    }
-
-    return true;
-}
-
-function toHex(bytes: Uint8Array) {
-    return Array.from(bytes)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-}
-
-async function hash(key: string): Promise<string> {
-    const bytes = (new TextEncoder()).encode(key);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
-    return toHex(new Uint8Array(hashBuffer));
-}
-
-function generateSalt(): string {
-    const bytes = new Uint8Array(32);
-    crypto.getRandomValues(bytes);
-    return toHex(bytes);
 }
 
 async function register(request: Request, env: Env): Promise<Response> {
