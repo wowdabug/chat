@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
-import validator from "validator";
+// import validator from "validator";
 import { Resend } from "resend";
 
 export class Channel extends DurableObject<Env> {
@@ -36,9 +36,9 @@ function isUsername(username: string): boolean {
     return true;
 }
 
-function isEmail(email: string): boolean {
-    return validator.isEmail(email);
-}
+// function isEmail(email: string): boolean {
+//     return validator.isEmail(email);
+// }
 
 // function isPassword(password: string): boolean {
 //     if (password.length < 8 || password.length > 64) {
@@ -92,20 +92,10 @@ function isHash(hash: string): boolean {
     return true;
 }
 
-async function login(request: Request, env: Env): Promise<Response> {
-    return new Response("No Content", { status: 204 });
-}
-
 function toHex(bytes: Uint8Array) {
     return Array.from(bytes)
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
-}
-
-function getToken(): string {
-    const bytes = new Uint8Array(32);
-    crypto.getRandomValues(bytes);
-    return toHex(bytes);
 }
 
 async function hash(key: string): Promise<string> {
@@ -114,21 +104,10 @@ async function hash(key: string): Promise<string> {
     return toHex(new Uint8Array(hashBuffer));
 }
 
-async function sendEmail(env: Env, username: string, email: string, token: string): Promise<boolean> {
-    const resend = new Resend(env.RESEND_KEY);
-
-    try {
-        const data = resend.emails.send({
-            from: 'onboarding@resend.dev',
-            to: email,
-            subject: 'Hello World',
-            text: `Hello ${username}!`
-        });
-    } catch {
-        return false;
-    }
-
-    return true;
+function getSalt(): string {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return toHex(bytes);
 }
 
 async function register(request: Request, env: Env): Promise<Response> {
@@ -148,49 +127,47 @@ async function register(request: Request, env: Env): Promise<Response> {
         return new Response("Invalid JSON", { status: 400 });
     }
 
-    const { username, email, clientHash } = json as Record<string, unknown>;
+    const { username, password } = json as Record<string, unknown>;
 
     if (
         typeof username !== "string" ||
-        typeof email !== "string" ||
-        typeof clientHash !== "string"
+        typeof password !== "string"
     ) {
         return new Response("Not String", { status: 400 });
     }
 
     if (
         !isUsername(username) || 
-        !isEmail(email) || 
-        !isHash(clientHash)
+        !isPassword(password)
     ) {
         return new Response("Invalid Registration Data", { status: 400 });
     }
 
     const hasUser = await env.chat
-        .prepare("SELECT id FROM users WHERE username = ? OR email = ?")
-        .bind(username, email)
+        .prepare("SELECT id FROM users WHERE username = ?")
+        .bind(username)
         .first();
 
     if (hasUser) {
         return new Response("Conflict", { status: 409 });
     }
 
-    const serverHash = await hash(clientHash + env.PEPPER)
+    const salt = getSalt();
+    const passwordHash = await hash(password + salt + env.PEPPER)
 
     await env.chat
-        .prepare("INSERT INTO users (username, email, password_hash, verified) VALUES (?, ?, ?, ?)")
-        .bind(username, email, serverHash, 0)
+        .prepare("INSERT INTO users (username, password_hash, password_salt) VALUES (?, ?, ?)")
+        .bind(username, passwordHash, salt)
         .run();
-
-    const status = await sendEmail(env, username, email, getToken());
-    if (!status) {
-        return new Response("Email Failed", { status: 400 });
-    }
 
     return new Response(null, { status: 204 });
 }
 
-async function verify(request: Request, env: Env): Promise<Response> {
+async function login(request: Request, env: Env): Promise<Response> {
+
+
+
+
     return new Response("No Content", { status: 204 });
 }
 
@@ -212,10 +189,6 @@ export default {
 
         if (url.pathname === "/register") {
             return register(request, env);
-        }
-        
-        if (url.pathname === "/verify") {
-            return verify(request, env);
         }
 
         if (url.pathname.startsWith("/channel/")) {
