@@ -69,7 +69,7 @@ export async function hash(key) {
     const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
     return toHex(new Uint8Array(hashBuffer));
 }
-export function generateSalt() {
+export function generateToken() {
     const bytes = new Uint8Array(32);
     crypto.getRandomValues(bytes);
     return toHex(bytes);

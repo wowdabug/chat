@@ -85,7 +85,7 @@ export async function hash(key: string): Promise<string> {
     return toHex(new Uint8Array(hashBuffer));
 }
 
-export function generateSalt(): string {
+export function generateToken(): string {
     const bytes = new Uint8Array(32);
     crypto.getRandomValues(bytes);
     return toHex(bytes);

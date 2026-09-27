@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
-import { isUsername, isHash, hash, generateSalt } from "../../shared/main";
+import { isUsername, isHash, hash, generateToken } from "../../shared/main";
 
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -57,7 +57,7 @@ async function register(request: Request, env: Env): Promise<Response> {
         !isUsername(username) || 
         !isHash(password)
     ) {
-        return getResponse("Invalid Data", 400);
+        return getResponse("Invalid Info", 400);
     }
 
     const hasUser = await env.chat
@@ -69,12 +69,12 @@ async function register(request: Request, env: Env): Promise<Response> {
         return getResponse("User Conflict", 409);
     }
 
-    const salt = generateSalt();
-    const passwordHash = await hash(password + salt + env.PEPPER)
+    const passwordSalt = generateToken();
+    const passwordHash = await hash(password + passwordSalt + env.PEPPER)
 
     await env.chat
         .prepare("INSERT INTO users (username, password_hash, password_salt) VALUES (?, ?, ?)")
-        .bind(username, passwordHash, salt)
+        .bind(username, passwordHash, passwordSalt)
         .run();
 
     return getResponse(null, 204);
@@ -83,9 +83,70 @@ async function register(request: Request, env: Env): Promise<Response> {
 async function login(request: Request, env: Env): Promise<Response> {
     if (request.method !== "POST") {
         return new Response("Invalid Method", { status: 400 });
-    }  
+    }
+    
+    let json: unknown;
 
-    return getResponse(null, 204);
+    try {
+        json = await request.json();
+    } catch {
+        return getResponse("Invalid JSON", 400);
+    }
+
+    if (
+        typeof json !== "object" ||
+        json === null ||
+        Array.isArray(json)
+    ) {
+        return getResponse("Invalid JSON", 400);
+    }
+
+    const { username, password } = json as Record<string, unknown>;
+
+    if (
+        typeof username !== "string" || 
+        typeof password !== "string" ||
+        !isUsername(username) || 
+        !isHash(password)
+    ) {
+        return getResponse("Invalid Info", 400);
+    }
+
+    const user = await env.chat
+        .prepare("SELECT id, username, password_hash, password_salt FROM users WHERE username = ?")
+        .bind(username)
+        .first<Record<string, unknown>>();
+
+    if (!user) {
+        return getResponse("Unauthorized User", 401);
+    }
+
+    const { 
+        id: id, 
+        password_hash: passwordHash, 
+        password_salt: passwordSalt 
+    } = user;
+
+    const clientPasswordHash = await hash(password + passwordSalt + env.PEPPER);
+    if (clientPasswordHash !== passwordHash) {
+        return getResponse("Unauthorized User", 401);
+    }
+
+    const token = generateToken();
+    const expiresAt = Date.now() + (7 * 24 * 60 * 60 * 1000);
+
+    await env.chat
+        .prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)")
+        .bind(token, id, expiresAt)
+        .run();
+
+    return new Response(null, { 
+        status: 204,
+        headers: {
+            ...CORS_HEADERS,
+            "Set-Cookie": `token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`
+        } 
+    })
 }
 
 async function channel(request: Request, env: Env): Promise<Response> {
