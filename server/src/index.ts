@@ -1,7 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 
-import validator from 'validator';
-import crypto from 'crypto';
+import validator from "validator";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
 
 export class Channel extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -108,6 +109,35 @@ function hash(key: string): string {
 //     return "";
 // }
 
+async function sendEmail(env: Env, username: string, email: string, token: string): Promise<boolean> {
+    const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+            user: env.EMAIL_USERNAME,
+            pass: env.EMAIL_PASSWORD,
+        },
+    });
+
+    try {
+        await transporter.verify();
+    } catch {
+        return false;
+    }
+
+    try {
+        await transporter.sendMail({
+            from: "\"WDB Chat\" <wdb.chat.server@example.com>",
+            to: email,
+            subject: "Email Verification",
+            text: `Hello, ${username}, please proceed to [CLIENT] to finish verification`,
+        });
+    } catch {
+        return false;
+    }
+
+    return true;
+}
+
 async function register(request: Request, env: Env): Promise<Response> {
     let json: unknown;
 
@@ -125,12 +155,12 @@ async function register(request: Request, env: Env): Promise<Response> {
         return new Response("Bad Request", { status: 400 });
     }
 
-    const { username, email, client_password_hash } = json as Record<string, unknown>;
+    const { username, email, clientHash } = json as Record<string, unknown>;
 
     if (
         typeof username !== "string" ||
         typeof email !== "string" ||
-        typeof client_password_hash !== "string"
+        typeof clientHash !== "string"
     ) {
         return new Response("Bad Request", { status: 400 });
     }
@@ -138,7 +168,7 @@ async function register(request: Request, env: Env): Promise<Response> {
     if (
         !isUsername(username) || 
         !isEmail(email) || 
-        !isHash(client_password_hash)
+        !isHash(clientHash)
     ) {
         return new Response("Bad Request", { status: 400 });
     }
@@ -152,12 +182,15 @@ async function register(request: Request, env: Env): Promise<Response> {
         return new Response("Conflict", { status: 409 });
     }
 
-    const server_password_hash = hash(client_password_hash + env.PEPPER)
+    const serverHash = hash(clientHash + env.PEPPER)
 
     env.chat
         .prepare("INSERT INTO users (username, email, password_hash, verified) VALUES (?, ?, ?, ?)")
-        .bind(username, email, server_password_hash, 0)
+        .bind(username, email, serverHash, 0)
         .run();
+
+    const token = crypto.randomBytes(32).toString("hex");
+    sendEmail(env, username, email, token);
 
     return new Response("No Content", { status: 204 });
 }
@@ -168,11 +201,11 @@ async function verify(request: Request, env: Env): Promise<Response> {
 
 async function channel(request: Request, env: Env): Promise<Response> {
     return new Response("No Content", { status: 204 });
-}
 
-// const stub = env.CHANNEL.getByName("general");
-// const greeting = await stub.sayHello("world");
-// return new Response(greeting);
+    // const stub = env.CHANNEL.getByName("general");
+    // const greeting = await stub.sayHello("world");
+    // return new Response(greeting);
+}
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
