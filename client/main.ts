@@ -1,4 +1,4 @@
-import { isPassword, hash } from "../shared/main";
+import { isPassword, hash } from "../shared/main.js";
 
 const testBtn = document.getElementById("test");
 
@@ -23,7 +23,7 @@ async function register() {
     console.log(password);
     console.log(passwordHash);
 
-    const postData = postResponse.text();
+    const postData = await postResponse.text();
     console.log(postData);
 }
 
@@ -44,10 +44,10 @@ async function login() {
     console.log(password);
     console.log(passwordHash);
 
-    const postData = postResponse.json();
+    const postData = await postResponse.text();
     console.log(postData);
 }
 
 testBtn.addEventListener("click", (event) => {
-    register();
+    login();
 })
