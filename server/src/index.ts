@@ -1,7 +1,20 @@
 import { DurableObject } from "cloudflare:workers";
 
-// import validator from "validator";
-import { Resend } from "resend";
+const CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+function getResponse<T extends BodyInit | null | undefined>(body: T, status: number): Response {
+    return new Response(body, {
+        status: status,
+        headers: {
+            ...CORS_HEADERS,
+            "Content-Type": "application/json",
+        },
+    });
+}
 
 export class Channel extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -35,40 +48,6 @@ function isUsername(username: string): boolean {
 
     return true;
 }
-
-// function isEmail(email: string): boolean {
-//     return validator.isEmail(email);
-// }
-
-// function isPassword(password: string): boolean {
-//     if (password.length < 8 || password.length > 64) {
-//         return false;
-//     } 
-
-//     const isNumber = (char: string): boolean => char >= "0" && char <= "9";
-//     const isLower = (char: string): boolean => char >= "a" && char <= "z";
-//     const isUpper = (char: string): boolean => char >= "A" && char <= "Z";
-
-//     let containsNumber = false;
-//     let containsLower = false;
-//     let containsUpper = false;
-//     let containsSpecial = false;
-    
-//     for (let i = 0; i < password.length; ++i) {
-//         const char = password[i];
-//         if (isNumber(char)) { 
-//             containsNumber = true;
-//         } else if (isLower(char)) {
-//             containsLower = true;
-//         } else if (isUpper(char)) {
-//             containsUpper = true;
-//         } else {
-//             containsSpecial = true;
-//         }
-//     }
-
-//     return (containsNumber && containsLower && containsUpper && containsSpecial);
-// }
 
 function isHash(hash: string): boolean {
     if (hash.length !== 64) {
@@ -112,7 +91,7 @@ function generateSalt(): string {
 
 async function register(request: Request, env: Env): Promise<Response> {
     if (request.method !== "POST") {
-        return new Response("Invalid Method", { status: 400 });
+        return getResponse("Invalid Method", 400);
     }    
 
     let json: unknown;
@@ -120,7 +99,7 @@ async function register(request: Request, env: Env): Promise<Response> {
     try {
         json = await request.json();
     } catch {
-        return new Response("Bad Request", { status: 400 });
+        return getResponse("Invalid JSON", 400);
     }
 
     if (
@@ -128,23 +107,18 @@ async function register(request: Request, env: Env): Promise<Response> {
         json === null ||
         Array.isArray(json)
     ) {
-        return new Response("Invalid JSON", { status: 400 });
+        return getResponse("Invalid JSON", 400);
     }
 
     const { username, password } = json as Record<string, unknown>;
 
     if (
-        typeof username !== "string" ||
-        typeof password !== "string"
-    ) {
-        return new Response("Data Not String", { status: 400 });
-    }
-
-    if (
+        typeof username !== "string" || 
+        typeof password !== "string" ||
         !isUsername(username) || 
         !isHash(password)
     ) {
-        return new Response("Invalid Data", { status: 400 });
+        return getResponse("Invalid Data", 400);
     }
 
     const hasUser = await env.chat
@@ -153,7 +127,7 @@ async function register(request: Request, env: Env): Promise<Response> {
         .first();
 
     if (hasUser) {
-        return new Response("Conflict", { status: 409 });
+        return getResponse("User Conflict", 409);
     }
 
     const salt = generateSalt();
@@ -164,27 +138,27 @@ async function register(request: Request, env: Env): Promise<Response> {
         .bind(username, passwordHash, salt)
         .run();
 
-    return new Response(null, { status: 204 });
+    return getResponse(null, 204);
 }
 
 async function login(request: Request, env: Env): Promise<Response> {
     if (request.method !== "POST") {
         return new Response("Invalid Method", { status: 400 });
-    }   
+    }  
 
-    return new Response(null, { status: 204 });
+    return getResponse(null, 204);
 }
 
 async function channel(request: Request, env: Env): Promise<Response> {
-    return new Response(null, { status: 204 });
-
-    // const stub = env.CHANNEL.getByName("general");
-    // const greeting = await stub.sayHello("world");
-    // return new Response(greeting);
+    return getResponse(null, 204);
 }
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
+        if (request.method === "OPTIONS") {
+            return getResponse(null, 204);
+        }
+
         const url = new URL(request.url);
 
         if (url.pathname === "/login") {
