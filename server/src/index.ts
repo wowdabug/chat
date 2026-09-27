@@ -104,13 +104,17 @@ async function hash(key: string): Promise<string> {
     return toHex(new Uint8Array(hashBuffer));
 }
 
-function getSalt(): string {
+function generateSalt(): string {
     const bytes = new Uint8Array(32);
     crypto.getRandomValues(bytes);
     return toHex(bytes);
 }
 
 async function register(request: Request, env: Env): Promise<Response> {
+    if (request.method !== "POST") {
+        return new Response("Invalid Method", { status: 400 });
+    }    
+
     let json: unknown;
 
     try {
@@ -133,14 +137,14 @@ async function register(request: Request, env: Env): Promise<Response> {
         typeof username !== "string" ||
         typeof password !== "string"
     ) {
-        return new Response("Not String", { status: 400 });
+        return new Response("Data Not String", { status: 400 });
     }
 
     if (
         !isUsername(username) || 
-        !isPassword(password)
+        !isHash(password)
     ) {
-        return new Response("Invalid Registration Data", { status: 400 });
+        return new Response("Invalid Data", { status: 400 });
     }
 
     const hasUser = await env.chat
@@ -152,7 +156,7 @@ async function register(request: Request, env: Env): Promise<Response> {
         return new Response("Conflict", { status: 409 });
     }
 
-    const salt = getSalt();
+    const salt = generateSalt();
     const passwordHash = await hash(password + salt + env.PEPPER)
 
     await env.chat
@@ -164,15 +168,15 @@ async function register(request: Request, env: Env): Promise<Response> {
 }
 
 async function login(request: Request, env: Env): Promise<Response> {
+    if (request.method !== "POST") {
+        return new Response("Invalid Method", { status: 400 });
+    }   
 
-
-
-
-    return new Response("No Content", { status: 204 });
+    return new Response(null, { status: 204 });
 }
 
 async function channel(request: Request, env: Env): Promise<Response> {
-    return new Response("No Content", { status: 204 });
+    return new Response(null, { status: 204 });
 
     // const stub = env.CHANNEL.getByName("general");
     // const greeting = await stub.sayHello("world");
