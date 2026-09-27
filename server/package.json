@@ -15,7 +15,7 @@
     "wrangler": "^4.141.0"
   },
   "dependencies": {
-    "nodemailer": "^10.0.10",
+    "resend": "^6.30.0",
     "validator": "^13.15.35"
   }
 }

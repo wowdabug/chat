@@ -1,8 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 import validator from "validator";
-import crypto from "crypto";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 export class Channel extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -97,39 +96,33 @@ async function login(request: Request, env: Env): Promise<Response> {
     return new Response("No Content", { status: 204 });
 }
 
-function hash(key: string): string {
-    return crypto.createHash("sha256").update(key).digest("hex");
+function toHex(bytes: Uint8Array) {
+    return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
 }
 
-// async function hashPassword(password: string, salt: string): Promise<string> {
-//     return "";
-// }
+function getToken(): string {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return toHex(bytes);
+}
 
-// async function generateSalt(): Promise<string> {
-//     return "";
-// }
+async function hash(key: string): Promise<string> {
+    const bytes = (new TextEncoder()).encode(key);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+    return toHex(new Uint8Array(hashBuffer));
+}
 
 async function sendEmail(env: Env, username: string, email: string, token: string): Promise<boolean> {
-    const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-            user: env.EMAIL_USERNAME,
-            pass: env.EMAIL_PASSWORD,
-        },
-    });
+    const resend = new Resend(env.RESEND_KEY);
 
     try {
-        await transporter.verify();
-    } catch {
-        return false;
-    }
-
-    try {
-        await transporter.sendMail({
-            from: "\"WDB Chat\" <wdb.chat.server@example.com>",
+        const data = resend.emails.send({
+            from: 'onboarding@resend.dev',
             to: email,
-            subject: "Email Verification",
-            text: `Hello, ${username}, please proceed to [CLIENT] to finish verification`,
+            subject: 'Hello World',
+            text: `Hello ${username}!`
         });
     } catch {
         return false;
@@ -152,7 +145,7 @@ async function register(request: Request, env: Env): Promise<Response> {
         json === null ||
         Array.isArray(json)
     ) {
-        return new Response("Bad Request", { status: 400 });
+        return new Response("Invalid JSON", { status: 400 });
     }
 
     const { username, email, clientHash } = json as Record<string, unknown>;
@@ -162,7 +155,7 @@ async function register(request: Request, env: Env): Promise<Response> {
         typeof email !== "string" ||
         typeof clientHash !== "string"
     ) {
-        return new Response("Bad Request", { status: 400 });
+        return new Response("Not String", { status: 400 });
     }
 
     if (
@@ -170,7 +163,7 @@ async function register(request: Request, env: Env): Promise<Response> {
         !isEmail(email) || 
         !isHash(clientHash)
     ) {
-        return new Response("Bad Request", { status: 400 });
+        return new Response("Invalid Registration Data", { status: 400 });
     }
 
     const hasUser = await env.chat
@@ -182,17 +175,19 @@ async function register(request: Request, env: Env): Promise<Response> {
         return new Response("Conflict", { status: 409 });
     }
 
-    const serverHash = hash(clientHash + env.PEPPER)
+    const serverHash = await hash(clientHash + env.PEPPER)
 
-    env.chat
+    await env.chat
         .prepare("INSERT INTO users (username, email, password_hash, verified) VALUES (?, ?, ?, ?)")
         .bind(username, email, serverHash, 0)
         .run();
 
-    const token = crypto.randomBytes(32).toString("hex");
-    sendEmail(env, username, email, token);
+    const status = await sendEmail(env, username, email, getToken());
+    if (!status) {
+        return new Response("Email Failed", { status: 400 });
+    }
 
-    return new Response("No Content", { status: 204 });
+    return new Response(null, { status: 204 });
 }
 
 async function verify(request: Request, env: Env): Promise<Response> {
