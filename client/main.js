@@ -22,7 +22,7 @@ async function register() {
 }
 async function login() {
     const username = "test";
-    const password = "obunga!fre1234";
+    const password = "obunga!fre234";
     const passwordHash = await hash(password);
     const postResponse = await fetch('http://127.0.0.1:8787/login', {
         method: "POST",
