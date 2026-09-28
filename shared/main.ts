@@ -1,3 +1,9 @@
+export const enum Event {
+    Join,
+    Part,
+    Message
+}
+
 export function isUsername(username: string): boolean {
     if (username.length < 3 || username.length > 30) {
         return false;

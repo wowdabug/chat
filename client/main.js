@@ -38,5 +38,16 @@ async function login() {
     console.log(postData);
 }
 testBtn.addEventListener("click", (event) => {
-    login();
+    channel();
 });
+async function channel() {
+    const message = "hello world";
+    const postResponse = await fetch('http://127.0.0.1:8787/channel/amongus', {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: message }),
+    });
+}
