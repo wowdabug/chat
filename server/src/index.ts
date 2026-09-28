@@ -1,21 +1,8 @@
-import { DurableObject } from "cloudflare:workers";
-
 import { register, login } from "./auth";
+import { Channel, channel } from "./channel";
 import { getResponse } from "./response";
 
-export class Channel extends DurableObject<Env> {
-	constructor(ctx: DurableObjectState, env: Env) {
-		super(ctx, env);
-	}
-
-	async sayHello(name: string): Promise<string> {
-		return `Hello, ${name}!`;
-	}
-}
-
-async function channel(request: Request, env: Env): Promise<Response> {
-    return getResponse(204);
-}
+export { Channel };
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
@@ -37,6 +24,6 @@ export default {
             return channel(request, env);
         }
 
-        return new Response("Not Found", { status: 404 });
+        return getResponse(404);
 	},
 } satisfies ExportedHandler<Env>;
